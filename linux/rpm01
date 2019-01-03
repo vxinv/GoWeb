@@ -1,0 +1,12 @@
+RPM
+redhat  Package Mamager
+01 查询有没有安装某个软件
+rpm -qa | grep mysql
+02 查询安装的具体信息
+rpm -qi mysql
+03 查询软件的文件
+rpm -ql mysql
+04 先找到火狐的安装包
+YUM
+shell 前端管理器
+01 先查看该包在不在服务器

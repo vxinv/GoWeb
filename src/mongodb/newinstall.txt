@@ -1,0 +1,19 @@
+01 
+db.createUser({ user: "lixin", pwd: "188282lll", roles: [{ role: "userAdminAnyDatabase", db: "admin" }] })
+mongodb中的用户是基于身份role的，该管理员账户的 role是 userAdminAnyDatabase。 ‘userAdmin’代表用户管理身份，’AnyDatabase’ 代表可以管理任何数据库。
+
+02 
+db.auth("lixin", "188282lll") 
+如果返回1，则表示成功。
+
+03 
+exit
+退出
+04
+sudo vi /etc/mongod.conf
+
+05 创建一个数据库,并且设置密码
+use yourdatabase
+db.createUser({ user: "lixin", pwd: "lixin888", roles: [{ role: "dbOwner", db: "NGDATA"}] })
+28018
+

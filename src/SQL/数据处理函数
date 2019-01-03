@@ -1,0 +1,21 @@
+01
+select lower(ename) from emp;
+02 trim  去除空格
+select ename from emp where ename =' SHMITH'//会查询不到
+                      where ename=trim("  SHMISH  ")\
+03 select round(123.456,1)         保留一位小数 四舍五入
+round(123.556,-2)==200
+04 select rand()    生成随机数(0~1)
+select round(rand()*100) //生产1-100的随机数
+
+05 需求 如果补助是空的,显示成零 ifnull
+select ename, ifnull(comm,0)as comm from emp;
+
+06 null值参加的数据运算还是空值
+select sal+comm from emp
+  如果补助为空的,每月发一百
+  select sal+ifnull(comm,100)from emp;
+
+
+
+

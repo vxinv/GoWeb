@@ -1,0 +1,39 @@
+01
+select
+    ename job
+from
+    emp
+where
+    job="MANAGER"or job="SELESMAN"
+02
+select
+    ename job
+form
+    emp
+where
+    job in("MANAGER", "SELESMAN")
+03
+select
+    ename sal
+from
+    emp
+where
+    sal in(3000,5000)//3000和5000 不是区间
+    // sal not in(3000,5000)
+04
+select //模糊查询
+    ename
+from
+    emp
+where
+    ename like '%0%'//% 是一个占位符 代表0到n个任意字符
+ // ename like 's%' //找出第一个字符是s的
+ // ename like '%t' //找出最后一个字符是t的
+ // ename like '_a%'//_ 代表任意一个字符
+
+05 and 和 or 是有优先级之分的,如果不确定,只需一个小小的括号
+
+
+
+
+

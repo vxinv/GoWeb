@@ -1,0 +1,12 @@
+01
+select
+   ename, sal
+from epm
+   order by
+sal;//按工资升序排列
+02
+select ename ,sal from emp order by sal desc; //降序排列
+03 //按照
+select ename ,sal from emp order by sal desc, ename asc
+
+

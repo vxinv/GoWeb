@@ -1,0 +1,333 @@
+import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Environment;
+import android.os.Handler;
+import android.util.Log;
+import com.bwei.okhttpdemo.app.MyApp;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+ 
+import okhttp3.Cache;
+import okhttp3.CacheControl;
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.FormBody;
+import okhttp3.Interceptor;
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import okhttp3.logging.HttpLoggingInterceptor;
+ 
+/**
+ * 1. 类的用途 封装OkHttp3的工具类 用单例设计模式
+ * 2. @author forever
+ * 3. @date 2017/9/6 09:19
+ */
+ 
+public class OkHttp3Utils {
+    /**
+     * 懒汉 安全 加同步
+     * 私有的静态成员变量 只声明不创建
+     * 私有的构造方法
+     * 提供返回实例的静态方法
+     */
+ 
+    private static OkHttp3Utils okHttp3Utils = null;
+ 
+    private OkHttp3Utils() {
+    }
+ 
+    public static OkHttp3Utils getInstance() {
+        if (okHttp3Utils == null) {
+            //加同步安全
+            synchronized (OkHttp3Utils.class) {
+                if (okHttp3Utils == null) {
+                    okHttp3Utils = new OkHttp3Utils();
+                }
+            }
+ 
+        }
+ 
+        return okHttp3Utils;
+    }
+ 
+    private static OkHttpClient okHttpClient = null;
+ 
+    public synchronized static OkHttpClient getOkHttpClient() {
+        if (okHttpClient == null) {
+            //判空 为空创建实例
+            // okHttpClient = new OkHttpClient();
+/**
+ * 和OkHttp2.x有区别的是不能通过OkHttpClient直接设置超时时间和缓存了，而是通过OkHttpClient.Builder来设置，
+ * 通过builder配置好OkHttpClient后用builder.build()来返回OkHttpClient，
+ * 所以我们通常不会调用new OkHttpClient()来得到OkHttpClient，而是通过builder.build()：
+ */
+            //  File sdcache = getExternalCacheDir();
+            //缓存目录
+            File sdcache = new File(Environment.getExternalStorageDirectory(), "cache");
+            int cacheSize = 10 * 1024 * 1024;
+            //OkHttp3拦截器
+            HttpLoggingInterceptor httpLoggingInterceptor = new HttpLoggingInterceptor(new HttpLoggingInterceptor.Logger() {
+                @Override
+                public void log(String message) {
+                    Log.i("xxx", message.toString());
+                }
+            });
+            //Okhttp3的拦截器日志分类 4种
+            httpLoggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY);
+ 
+ 
+            okHttpClient = new OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS)
+                    //添加OkHttp3的拦截器
+                    .addInterceptor(httpLoggingInterceptor)
+                    .addNetworkInterceptor(new CacheInterceptor())
+                    .writeTimeout(20, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS)
+                    .cache(new Cache(sdcache.getAbsoluteFile(), cacheSize))
+                    .build();
+        }
+        return okHttpClient;
+    }
+ 
+    private static Handler mHandler = null;
+ 
+    public synchronized static Handler getHandler() {
+        if (mHandler == null) {
+            mHandler = new Handler();
+        }
+ 
+        return mHandler;
+    }
+ 
+    /**
+     * get请求
+     * 参数1 url
+     * 参数2 回调Callback
+     */
+ 
+    public static void doGet(String url, Callback callback) {
+ 
+        //创建OkHttpClient请求对象
+        OkHttpClient okHttpClient = getOkHttpClient();
+        //创建Request
+        Request request = new Request.Builder().url(url).build();
+        //得到Call对象
+        Call call = okHttpClient.newCall(request);
+        //执行异步请求
+        call.enqueue(callback);
+ 
+ 
+    }
+ 
+    /**
+     * post请求
+     * 参数1 url
+     * 参数2 回调Callback
+     */
+ 
+    public static void doPost(String url, Map<String, String> params, Callback callback) {
+ 
+        //创建OkHttpClient请求对象
+        OkHttpClient okHttpClient = getOkHttpClient();
+        //3.x版本post请求换成FormBody 封装键值对参数
+ 
+        FormBody.Builder builder = new FormBody.Builder();
+        //遍历集合
+        for (String key : params.keySet()) {
+            builder.add(key, params.get(key));
+ 
+        }
+ 
+        //创建Request
+        Request request = new Request.Builder().url(url).post(builder.build()).build();
+
+        Call call = okHttpClient.newCall(request);
+        call.enqueue(callback);
+ 
+    }
+ 
+    /**
+     * post请求上传文件
+     * 参数1 url
+     * 参数2 回调Callback
+     */
+    public static void uploadPic(String url, File file, String fileName) {
+        //创建OkHttpClient请求对象
+        OkHttpClient okHttpClient = getOkHttpClient();
+        //创建RequestBody 封装file参数
+        RequestBody fileBody = RequestBody.create(MediaType.parse("application/octet-stream"), file);
+        //创建RequestBody 设置类型等
+        RequestBody requestBody = new MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("file", fileName, fileBody).build();
+        //创建Request
+        Request request = new Request.Builder().url(url).post(requestBody).build();
+ 
+        //得到Call
+        Call call = okHttpClient.newCall(request);
+        //执行请求
+        call.enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+ 
+            }
+ 
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                //上传成功回调 目前不需要处理
+            }
+        });
+ 
+    }
+ 
+    /**
+     * Post请求发送JSON数据
+     * 参数一：请求Url
+     * 参数二：请求的JSON
+     * 参数三：请求回调
+     */
+    public static void doPostJson(String url, String jsonParams, Callback callback) {
+        RequestBody requestBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), jsonParams);
+        Request request = new Request.Builder().url(url).post(requestBody).build();
+        Call call = getOkHttpClient().newCall(request);
+        call.enqueue(callback);
+ 
+ 
+    }
+ 
+    /**
+     * 下载文件 以流的形式把apk写入的指定文件 得到file后进行安装
+     * 参数一：请求Url
+     * 参数二：保存文件的路径名
+     * 参数三：保存文件的文件名
+     */
+    public static void download(final Context context, final String url, final String saveDir) {
+        Request request = new Request.Builder().url(url).build();
+        Call call = getOkHttpClient().newCall(request);
+        call.enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.i("xxx", e.toString());
+            }
+ 
+            @Override
+            public void onResponse(Call call, final Response response) throws IOException {
+ 
+                InputStream is = null;
+                byte[] buf = new byte[2048];
+                int len = 0;
+                FileOutputStream fos = null;
+                try {
+                    is = response.body().byteStream();
+                    //apk保存路径
+                    final String fileDir = isExistDir(saveDir);
+                    //文件
+                    File file = new File(fileDir, getNameFromUrl(url));
+                    fos = new FileOutputStream(file);
+                    while ((len = is.read(buf)) != -1) {
+                        fos.write(buf, 0, len);
+                    }
+                    fos.flush();
+                    //apk下载完成后 调用系统的安装方法
+                    Intent intent = new Intent(Intent.ACTION_VIEW);
+                    intent.setDataAndType(Uri.fromFile(file), "application/vnd.android.package-archive");
+                    context.startActivity(intent);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } finally {
+                    if (is != null) is.close();
+                    if (fos != null) fos.close();
+ 
+ 
+                }
+            }
+        });
+ 
+    }
+ 
+    /**
+     * @param saveDir
+     * @return
+     * @throws IOException 判断下载目录是否存在
+     */
+    public static String isExistDir(String saveDir) throws IOException {
+        // 下载位置
+        if (Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
+ 
+            File downloadFile = new File(Environment.getExternalStorageDirectory(), saveDir);
+            if (!downloadFile.mkdirs()) {
+                downloadFile.createNewFile();
+            }
+            String savePath = downloadFile.getAbsolutePath();
+            Log.e("savePath", savePath);
+            return savePath;
+        }
+        return null;
+    }
+ 
+    /**
+     * @param url
+     * @return 从下载连接中解析出文件名
+     */
+    private static String getNameFromUrl(String url) {
+        return url.substring(url.lastIndexOf("/") + 1);
+    }
+ 
+    /**
+     * 为okhttp添加缓存，这里是考虑到服务器不支持缓存时，从而让okhttp支持缓存
+     */
+    private static class CacheInterceptor implements Interceptor {
+        @Override
+        public Response intercept(Chain chain) throws IOException {
+            // 有网络时 设置缓存超时时间1个小时
+            int maxAge = 60 * 60;
+            // 无网络时，设置超时为1天
+            int maxStale = 60 * 60 * 24;
+            Request request = chain.request();
+            if (NetWorkUtils.isNetWorkAvailable(MyApp.getInstance())) {
+                //有网络时只从网络获取
+                request = request.newBuilder().cacheControl(CacheControl.FORCE_NETWORK).build();
+            } else {
+                //无网络时只从缓存中读取
+                request = request.newBuilder().cacheControl(CacheControl.FORCE_CACHE).build();
+               /* Looper.prepare();
+                Toast.makeText(MyApp.getInstance(), "走拦截器缓存", Toast.LENGTH_SHORT).show();
+                Looper.loop();*/
+            }
+            Response response = chain.proceed(request);
+            if (NetWorkUtils.isNetWorkAvailable(MyApp.getInstance())) {
+                response = response.newBuilder()
+                        .removeHeader("Pragma")
+                        .header("Cache-Control", "public, max-age=" + maxAge)
+                        .build();
+            } else {
+                response = response.newBuilder()
+                        .removeHeader("Pragma")
+                        .header("Cache-Control", "public, only-if-cached, max-stale=" + maxStale)
+                        .build();
+            }
+            return response;
+        }
+    }
+}
+[{"username":"QvQ","openid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","unique":0,"usertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","usersex":"1","userinfo":"","usertext":"","blogimages":["http://one.ijavascript.club/1537156354159.3438"],"blogcomments":[],"blogcommentsnum":0,"publishtime":"09-17 11:52","Type":"2","VideoImage":"","Video":"","Usercredit":6000,"Monney":22,"View":378,"Zan":0},{"username":"QvQ","openid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","unique":0,"usertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","usersex":"1","userinfo":"","usertext":"","blogimages":[],"blogcomments":[{"listnumber":0,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"谁让你们这么不听话了","time":"8-12 15:52","ccoments":[]},{"listnumber":1,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"草泥马，垃圾腾讯","time":"8-13 12:2","ccoments":[]}],"blogcommentsnum":2,"publishtime":"09-12 10:16","Type":"3","VideoImage":"http://three.ijavascript.club/1536718583596.1357","Video":"http://three.ijavascript.club/1536718583627.9038","Usercredit":6000,"Monney":21,"View":509,"Zan":0},{"username":"QvQ","openid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","unique":0,"usertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","usersex":"1","userinfo":"","usertext":"哈哈哈哈哈哈哈哈好😊 ","blogimages":[],"blogcomments":[{"l
+istnumber":0,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"哈哈哈哈","time":"8-12 8:51","ccoments":[]},{"listnumber":1,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"buybuybuyhb ","time":"8-12 8:57","ccoments":[]},{"listnumber":2,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"有一个bug出来了😁 ","time":"8-12 16:3","ccoments":[]}],"blogcommentsnum":3,"publishtime":"09-12 08:44","Type":"1","VideoImage":"","Video":"","Usercre
+dit":6000,"Monney":20,"View":553,"Zan":0},{"username":"QvQ","openid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","unique":0,"usertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","usersex":"1","userinfo":"","usertext":"啦啦啦啦啦啦啦啦啦
+😄 ","blogimages":[],"blogcomments":[{"listnumber":0,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen
+/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"啦啦啦啦个什么呀😳 ","time":"8-12 9:8",
+"ccoments":[]},{"listnumber":1,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"哎呀，你最牛逼了","time":"8-12 12:47","ccoments":[]}],"blogcommentsnum":2,"publishtime":"09-12 08:43","Type":"1","VideoImage":"","Video":"","Usercredit":6000,"Monney":19,"View":544,"Zan":0},{"username":"QvQ","openid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","unique":0,"usertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","usersex":"1","userinfo":"","usertext":"哈哈哈哈哈","blogimages":[],"blogcomments":[],"blogcommentsnum":0,"publishtime":"09-12 08:42","Type":"1","VideoImage":"","Video":"","Usercredit":6000,"Monney":18,"View":540,"Zan":0},{"username":"QvQ","openid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","unique":0,"usertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","usersex":"1","userinfo":"","usertext":"","blogimages":["http://three.ijavascript.club/1536712894538.1077"],"blogcomments":[{"listnumber":0,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"也乖乖的过得更好电话号","time":"8-12 12:36","ccoments":[{"cccoments":[],"ccuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","ccusername":"QvQ","ccomenttext":"一样一样ggg嘎嘎嘎嘎嘎嘎嘎嘎嘎嘎嘎嘎嘎嘎嘎嘎嘎嘎嘎嘎"},{"cccoments":[],"ccuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","ccusername":"QvQ","ccomenttext":"YY一个哥哥姑姑姑父风风光光刚刚给"}]},{"listnumber":1,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"YY一个哥哥姑姑姑父风风光光刚刚
+给","time":"8-13 16:2","ccoments":[]},{"listnumber":2,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"也一样嘎嘎嘎嘎天天团购嘎嘎嘎嘎嘎嘎嘎嘎","time":"8-13 16:3","ccoments":[]},{"listnumber":3,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"YY一个哥哥发给坛坛罐罐菲菲v反反复复","time":"8-13 16:3","ccoments":[]},{"listnumber":4,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"YY一个哥哥嘎嘎嘎嘎各过各的让风吹沉沉浮浮分","time":"8-13
+16:3","ccoments":[]},{"listnumber":5,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"很过分太丰富风风光光刚刚给黄河鬼棺","time":"8-13 16:3","ccoments":[]},{"listnumber":6,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"有一个骨头汤付费通特乳房v刚刚v刚刚v姑姑姑父长头发发v嘎嘎嘎嘎一贯风格
+嘎嘎嘎嘎嘎嘎嘎嘎","time":"8-13 16:4","ccoments":[]},{"listnumber":7,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"YY他天天反反复复嘎嘎嘎嘎v刚
+刚给","time":"8-13 16:4","ccoments":[]},{"listnumber":8,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"YY嘎嘎嘎嘎嘎嘎嘎嘎嘎嘎嘎嘎","time":"8-13 16:4","ccoments":[]},{"listnumber":9,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"一样一样亚太广告个","time":"8-13 16:4","ccoments":[]},{"listnumber":10,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"一样一样亚太广告个一样一样过眼云烟高圆圆","time":"8-13 16:4","ccoments":[]},{"listnumber":11,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"uu一样一样嘎嘎嘎嘎刚刚","time":"8-13 16:4","ccoments":[]},{"listnumber":12,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"应用化工嘎嘎嘎嘎嘎嘎嘎嘎","time":"8-13 16:5","ccoments":[]},{"listnumber":13,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"蝇营狗苟公共英语ggg一样一样YY","time":"8-13 16:5","ccoments":[]}],"blogcommentsnum":16,"publishtime":"09-12 08:41","Type":"2","VideoImage":"","Video":"","Usercredit":6000,"Monney":17,"View":550,"Zan":0},{"username":"QvQ","openid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","unique":0,"usertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","usersex":"1","userinfo":"","usertext":"为什么比以前满了好多","blogimages":[],"blogcomments":[{"listnumber":0,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"可是里","time":"8-12 8:32","ccoments":[{"cccoments":[],"ccuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","ccusername":"QvQ","ccomenttext":"我也感觉"}]},{"listnumber":1,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"没有感觉呀😄 ","time":"8-12 8:32","ccoments":[]},{"listnumber":2,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5h
+rxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"现在不一样了","time":"8-13 11:24","ccoments":[]}],"blogcommentsnum":4,"publishtime":"09-12 08:30","Type":"1","VideoImage":"","Video":"","Usercredit":6000,"Monney":16,"View":577,"Zan":0},{"username":"QvQ","openid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","unique":0,"usertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","usersex":"1","userinfo":"","usertext":"又是测
+试数据","blogimages":["http://three.ijavascript.club/1536705960694.311"],"blogcomments":[{"listnumber":0,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"这个数据就这么火麻","time":"8-12 16:1","ccoments":[]},{"listnumber":1,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"什么意思","time":"8-12 16:1","ccoments":[]},{"listnumber":2,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"啦啦啦啦😄 ","time":"8-12 16:1","ccoments":[]}],"bl
+ogcommentsnum":3,"publishtime":"09-12 06:46","Type":"2","VideoImage":"","Video":"","Usercredit":6000,"Monney":15,"View":31694,"Zan":0},{"username":"QvQ","openid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","unique":0,"usertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","usersex":"1","userinfo":"","usertext":"hahhahahah,又是测试数据","blogimages":[],"blogcomments":[],"blogcommentsnum":0,"publishtime":"09-12 06:45","Type":"1","VideoImage":"","Video":"","Usercredit":6000,"Monney":14,"View":604,"Zan":0},{"username":"QvQ","openid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","unique":0,"usertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","usersex":"1","userinfo":"","usertext":"哈哈哈😄 ","blogimages":["http://three.ijavascript.club/1536681782669.226","http://three.ijavascript.clu
+b/1536681782608.2095","http://three.ijavascript.club/1536681782659.4133","http://three.ijavascript.club/1536681782607.4429"],"blogcomments":[{"listnumber":0,"cuserid":"ohWQQ5c6r9vt6aBHY4EdKEV5hrxI","cusername":"QvQ","cusertouxiang":"https://wx.qlogo.cn/mmopen/vi_32/F5iaUOXr925fibXRBBfTGicyml2keHN1SR7BXPTE4dk3ks3VX86f3UK6z7SzwuI0aINjAsnHNexsofazE0P4pLknw/132","comenttext":"你总是这么调皮呀😄 ","time":"8-13 11:27","ccoments":[]}],"blogcommentsnum":1,"publishtime":"09
+-12 00:03","Type":"2","VideoImage":"","Video":"","Usercredit":6000,"Monney":13,"View":635,"Zan":0}]
+         

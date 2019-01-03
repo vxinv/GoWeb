@@ -1,0 +1,32 @@
+01 首先配置yum 源
+vim /etc/yum.repos.d/mongodb-org-3.4.repo
+[mongodb-org-3.4]
+name=MongoDB Repository
+baseurl=https://repo.mongodb.org/yum/redhat/$releasever/mongodb-org/3.4/x86_64/
+gpgcheck=1
+enabled=1
+gpgkey=https://www.mongodb.org/static/pgp/server-3.4.asc
+02 yum 安装mongodb
+ yum install -y mongodb-org
+03 启动服务
+service mongod start
+结果是
+[root@localhost ~]# service mongod start
+Redirecting to /bin/systemctl start mongod.service
+[root@localhost ~]# ps -ef | grep mongod
+mongod 24960 1 1 23:43 ? 00:00:00 /usr/bin/mongod -f /etc/mongod.conf
+root 24989 24056 0 23:43 pts/0 00:00:00 grep --color=auto mongod
+04 配置开机自启
+chkconfig mongod on
+05 先关闭服务
+06 在打开服务 //可能是让服务生效
+db.createUser({user:'lixin',pwd:'188282lll',roles:['root']});
+mongo --port 51888 -u "lixin" -p "188282lll" --authenticationDatabase "admin"
+验证第3步用户添加是否成功
+db.auth("lixin", "188282lll") 如果返回1，则表示成功。
+exit退出系统
+db.auth()方法理解为 用户的验证功能
+2
+use admin 进入admin数据库
+创建管理员账户
+db.createUser({ user: "lixin", pwd: "188282lll", roles: [{ role: "userAdminAnyDatabase", db: "admin" }] })

@@ -1,0 +1,93 @@
+//func QueryCar(w http.ResponseWriter, r *http.Request){
+//	            db:=getDb()
+//	            r.ParseForm() //解析参数，默认是不会解析的
+//                result, _:= ioutil.ReadAll(r.Body)
+//                r.Body.Close()
+//				fmt.Printf("%s\n", result)
+//				f:=Car{}
+//				json.Unmarshal(result,&f)
+//                switch(f.Wantdo){
+//				case "query":
+//				   p:=Carinfo{}
+//				   err:=db.Find(bson.M{"carnumber":f.Carnumber}).One(&p)
+//				   fmt.Println(p)
+//				   if(err!=nil){
+//					  fmt.Println("ll")
+//				   }
+//				   m:=make(map[string]string)
+//				   if(p.Phonenumber==""){
+//					   m["Phonenumber"]="车牌号不正确"
+//				   }else{
+//					   m["Phonenumber"]=p.Phonenumber
+//				   }
+//				   pp,_:=json.Marshal(m)
+//				   w.Header().Set("Access-Control-Allow-Origin", "*")             //允许访问所有域
+//                   w.Header().Add("Access-Control-Allow-Headers", "Content-Type") //header的类型
+//                   w.Header().Set("content-type", "application/json")             //返回数据格式是json
+//				   w.Write(pp)
+//				   return
+//				case "add":
+//					 p:=Carinfo{}
+//					 err:=db.Find(bson.M{"carnumber":f.Carnumber}).One(&p)
+//					   fmt.Println(p)
+//					 if(err==nil){
+//						w.Header().Set("Access-Control-Allow-Origin", "*")             //允许访问所有域
+//                        w.Header().Add("Access-Control-Allow-Headers", "Content-Type") //header的类型
+//                        w.Header().Set("content-type", "application/json")             //返回数据格式是json
+//						w.Write([]byte(`{"message":"车牌号已添加"}`))
+//						return
+//					 }
+//					 err=db.Insert(&Carinfo{f.Carnumber,f.Phonenumber})
+//					 if (err!=nil){
+//						w.Header().Set("Access-Control-Allow-Origin", "*")             //允许访问所有域
+//                		w.Header().Add("Access-Control-Allow-Headers", "Content-Type") //header的类型
+//                 		w.Header().Set("content-type", "application/json")             //返回数据格式是json
+//						w.Write([]byte(`{"message":"车牌号添加失败"}`))
+//						fmt.Println("error")
+//						return
+//					}else{
+//						w.Header().Set("Access-Control-Allow-Origin", "*")             //允许访问所有域
+//                 		w.Header().Add("Access-Control-Allow-Headers", "Content-Type") //header的类型
+//                 		w.Header().Set("content-type", "application/json")             //返回数据格式是json
+//						w.Write([]byte(`{"message":"车牌号添加成功"}`))
+//						fmt.Println("success")
+//						return
+//					}
+//				case "updata":
+//                     p:=Carinfo{}
+//					 err:=db.Find(bson.M{"carnumber":f.Carnumber}).One(&p)
+//					   fmt.Println(p)
+//					 if(err!=nil){
+//						w.Header().Set("Access-Control-Allow-Origin", "*")             //允许访问所有域
+//                        w.Header().Add("Access-Control-Allow-Headers", "Content-Type") //header的类型
+//                        w.Header().Set("content-type", "application/json")             //返回数据格式是json
+//						w.Write([]byte(`{"message":"该车牌号不存在"}`))
+//						return
+//					 }
+//					 err = db.Update(bson.M{"carnumber":f.Carnumber},bson.M{"$set": bson.M{
+//                                    "phonenumber":f.Phonenumber}})
+//					 if (err!=nil){
+//						w.Header().Set("Access-Control-Allow-Origin", "*")             //允许访问所有域
+//                		w.Header().Add("Access-Control-Allow-Headers", "Content-Type") //header的类型
+//                 		w.Header().Set("content-type", "application/json")             //返回数据格式是json
+//						w.Write([]byte(`{"message":"手机号修改失败"}`))
+//						fmt.Println("error")
+//						return
+//					}else{
+//						w.Header().Set("Access-Control-Allow-Origin", "*")             //允许访问所有域
+//                 		w.Header().Add("Access-Control-Allow-Headers", "Content-Type") //header的类型
+//                 		w.Header().Set("content-type", "application/json")             //返回数据格式是json
+//						w.Write([]byte(`{"message":"手机号修改成功"}`))
+//						fmt.Println("success")
+//						return
+//					}
+//				}
+//				return
+//				}
+//func Che(w http.ResponseWriter, r *http.Request){
+//	data,err:=ioutil.ReadFile("./tianmao.html")
+//	if err!=nil{
+//		panic(err)
+//	}
+//	w.Write(data)
+//}
